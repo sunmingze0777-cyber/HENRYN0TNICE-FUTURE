@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>注塑产能与利润敏感度分析</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background-color: #f4f6f9; color: #333; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        h2 { text-align: center; color: #2c3e50; border-bottom: 2px solid #eaeaea; padding-bottom: 10px; }
+        
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+        .card { background: #f8f9fa; padding: 15px; border-radius: 6px; border: 1px solid #e9ecef; }
+        .card-title { font-weight: bold; margin-bottom: 10px; color: #555; display: block; }
+        
+        label { display: block; margin-bottom: 5px; font-size: 14px; color: #666; }
+        input { width: 100%; padding: 8px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-size: 16px; }
+        
+        .result-area { background-color: #e8f5e9; padding: 20px; border-radius: 6px; margin-top: 20px; }
+        .result-row { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 16px; }
+        .highlight { font-weight: bold; color: #2e7d32; font-size: 20px; }
+        .loss { color: #d32f2f; font-weight: bold; }
+        
+        .btn { width: 100%; padding: 12px; background-color: #0056b3; color: white; border: none; border-radius: 4px; font-size: 16px; cursor: pointer; margin-top: 10px; }
+        .btn:hover { background-color: #004494; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>🏭 注塑生产效率分析器</h2>
+    
+    <div class="grid">
+        <div class="card" style="border-left: 4px solid #0056b3;">
+            <span class="card-title">标准/报价参数 (KPI)</span>
+            <label>模具穴数 (Cavities)</label>
+            <input type="number" id="stdCavity" value="4">
+            <label>标准成型周期 (秒)</label>
+            <input type="number" id="stdCycle" value="40">
+            <label>计划生产时长 (小时)</label>
+            <input type="number" id="hours" value="22">
+        </div>
+
+        <div class="card" style="border-left: 4px solid #d32f2f;">
+            <span class="card-title">车间实际参数 (Actual)</span>
+            <label>实际成型周期 (秒)</label>
+            <input type="number" id="actCycle" value="45">
+            <label>产品单价 (元/件)</label>
+            <input type="number" id="price" value="2.5">
+        </div>
+    </div>
+
+    <button class="btn" onclick="calculate()">计算差距</button>
+
+    <div class="result-area" id="resultBox" style="display:none;">
+        <div class="result-row">
+            <span>标准日产能:</span>
+            <span id="stdOutput">0</span>
+        </div>
+        <div class="result-row">
+            <span>实际日产能:</span>
+            <span id="actOutput" style="color:#d32f2f">0</span>
+        </div>
+        <hr>
+        <div class="result-row">
+            <span>少做的数量:</span>
+            <span id="diffQty" class="loss">0</span>
+        </div>
+        <div class="result-row" style="font-size: 24px; margin-top: 10px;">
+            <span>📉 单日产值流失:</span>
+            <span id="moneyLoss" class="loss">0 元</span>
+        </div>
+        <div style="text-align: center; margin-top: 15px; font-size: 14px; color: #666;">
+            *如果按照每月 26 天计算，月度流失：<span id="monthLoss">0</span> 元
+        </div>
+    </div>
+</div>
+
+<script>
+    function calculate() {
+        // 获取输入值
+        let stdCavity = Number(document.getElementById('stdCavity').value);
+        let stdCycle = Number(document.getElementById('stdCycle').value);
+        let hours = Number(document.getElementById('hours').value);
+        
+        let actCycle = Number(document.getElementById('actCycle').value);
+        let price = Number(document.getElementById('price').value);
+
+        // 计算总秒数
+        let totalSeconds = hours * 3600;
+
+        // 计算产能
+        let stdOutput = Math.floor((totalSeconds / stdCycle) * stdCavity);
+        let actOutput = Math.floor((totalSeconds / actCycle) * stdCavity);
+
+        // 计算差距
+        let diff = stdOutput - actOutput;
+        let money = diff * price;
+        let monthMoney = money * 26;
+
+        // 显示结果
+        document.getElementById('stdOutput').innerText = stdOutput.toLocaleString() + " 件";
+        document.getElementById('actOutput').innerText = actOutput.toLocaleString() + " 件";
+        document.getElementById('diffQty').innerText = "-" + diff.toLocaleString() + " 件";
+        document.getElementById('moneyLoss').innerText = "-" + money.toLocaleString(undefined, {minimumFractionDigits: 2}) + " 元";
+        document.getElementById('monthLoss').innerText = "-" + monthMoney.toLocaleString(undefined, {minimumFractionDigits: 2});
+
+        document.getElementById('resultBox').style.display = 'block';
+    }
+</script>
+
+</body>
+</html>
