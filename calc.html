@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YMC 注塑精密排程系统</title>
+    <style>
+        :root { --primary: #0284c7; --bg: #f8fafc; --card: #ffffff; --border: #e2e8f0; --text: #334155; --logo-color: #0f172a; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: var(--bg); color: var(--text); padding: 20px; max-width: 800px; margin: 0 auto; padding-bottom: 120px; }
+        
+        /* 顶部品牌栏 */
+        .header { display: flex; align-items: center; justify-content: center; margin-bottom: 25px; padding-bottom: 20px; border-bottom: 2px solid #e2e8f0; }
+        
+        /* Logo 样式 (如果没有图片，这段CSS会画一个椭圆YMC) */
+        .logo-css {
+            border: 3px solid var(--logo-color);
+            border-radius: 50%; /* 椭圆效果 */
+            padding: 2px 12px;
+            font-weight: 900;
+            font-size: 20px;
+            color: var(--logo-color);
+            letter-spacing: 1px;
+            margin-right: 15px;
+            font-style: italic;
+            display: inline-block;
+            white-space: nowrap;
+        }
+
+        /* 如果你有真实的图片，用这个样式 */
+        .logo-img { height: 40px; margin-right: 15px; display: none; /* 默认隐藏，有图时去掉这行 */ }
+
+        .app-title { font-size: 22px; font-weight: bold; color: #1e293b; letter-spacing: 0.5px; }
+
+        /* 卡片容器 */
+        .card { background: var(--card); border-radius: 12px; padding: 25px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); margin-bottom: 20px; border: 1px solid var(--border); }
+        h3 { font-size: 15px; color: #64748b; margin-top: 0; margin-bottom: 15px; text-transform: uppercase; border-left: 4px solid var(--primary); padding-left: 10px; }
+
+        /* 输入框样式 */
+        .input-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .input-row label { font-size: 15px; font-weight: 500; }
+        .input-wrapper { width: 120px; position: relative; }
+        input[type="number"] { width: 100%; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 16px; text-align: right; font-weight: bold; color: var(--primary); outline: none; transition: border 0.2s; }
+        input[type="number"]:focus { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.1); }
+        .unit { position: absolute; right: 30px; top: 9px; font-size: 12px; color: #94a3b8; pointer-events: none; }
+        
+        /* 开关组件 */
+        .toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 12px; background: #f8fafc; border-radius: 8px; margin-bottom: 10px; border: 1px solid transparent; transition: all 0.2s; }
+        .toggle-row.active { border-color: var(--primary); background: #f0f9ff; }
+        
+        .toggle-left { display: flex; align-items: center; gap: 10px; flex: 1; cursor: pointer; }
+        .toggle-switch { position: relative; display: inline-block; width: 44px; height: 24px; pointer-events: none; } /* 禁用开关本身的点击，改为点击整行 */
+        .slider { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-color: #cbd5e1; transition: .4s; border-radius: 24px; }
+        .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+        input:checked + .slider { background-color: var(--primary); }
+        input:checked + .slider:before { transform: translateX(20px); }
+
+        .toggle-input { width: 100px; display: none; animation: fadeIn 0.3s; }
+        .active .toggle-input { display: block; }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* 底部结果栏 */
+        .result-bar { background: #1e293b; color: white; padding: 20px; border-radius: 12px; position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); width: 90%; max-width: 760px; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5); z-index: 100; display: flex; flex-direction: column; }
+        .result-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; text-align: center; }
+        .res-item { display: flex; flex-direction: column; }
+        .res-label { font-size: 11px; color: #94a3b8; margin-bottom: 4px; }
+        .res-val { font-size: 20px; font-weight: bold; color: #38bdf8; }
+        .res-val.bad { color: #f87171; }
+        
+        .hint-text { font-size: 10px; color: #64748b; text-align: center; margin-top: 10px; opacity: 0.8; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <div class="logo-css" id="cssLogo">YMC</div>
+        
+        <img src="logo.png" class="logo-img" id="imgLogo" alt="YMC Logo" onerror="this.style.display='none'; document.getElementById('cssLogo').style.display='inline-block';">
+        
+        <div class="app-title">注塑智能排程系统 V3.1</div>
+    </div>
+
+    <div class="card">
+        <h3>1. 基础生产数据 (Base)</h3>
+        <div class="input-row">
+            <label>📅 计划排班时长</label>
+            <div class="input-wrapper"><input type="number" id="baseHours" value="22" oninput="calc()"><span class="unit" style="right:10px">小时</span></div>
+        </div>
+        <div class="input-row">
+            <label>📦 订单良品总数</label>
+            <div class="input-wrapper"><input type="number" id="orderQty" value="50000" oninput="calc()"></div>
+        </div>
+        <div class="input-row">
+            <label>⏱️ 标准成型周期</label>
+            <div class="input-wrapper"><input type="number" id="cycle" value="40.5" step="0.1" oninput="calc()"><span class="unit" style="right:10px">秒</span></div>
+        </div>
+        <div class="input-row">
+            <label>⚙️ 模具穴数</label>
+            <div class="input-wrapper"><input type="number" id="cavity" value="4" oninput="calc()"></div>
+        </div>
+    </div>
+
+    <div class="card" style="margin-bottom: 150px;"> <h3>2. 精确耗损因素 (点击开启)</h3>
+
+        <div class="toggle-row" id="row-mold" onclick="toggleRow('mold')">
+            <div class="toggle-left">
+                <label class="toggle-switch"><input type="checkbox" id="check-mold"><span class="slider"></span></label>
+                <span>🛠️ 换模/修模时间</span>
+            </div>
+            <div class="toggle-input" onclick="event.stopPropagation()">
+                <input type="number" id="val-mold" placeholder="分钟" value="28" oninput="calc()">
+            </div>
+        </div>
+
+        <div class="toggle-row" id="row-warm" onclick="toggleRow('warm')">
+            <div class="toggle-left">
+                <label class="toggle-switch"><input type="checkbox" id="check-warm"><span class="slider"></span></label>
+                <span>🔥 暖机/射嘴清理</span>
+            </div>
+            <div class="toggle-input" onclick="event.stopPropagation()">
+                <input type="number" id="val-warm" placeholder="分钟" value="15" oninput="calc()">
+            </div>
+        </div>
+
+        <div class="toggle-row" id="row-break" onclick="toggleRow('break')">
+            <div class="toggle-left">
+                <label class="toggle-switch"><input type="checkbox" id="check-break"><span class="slider"></span></label>
+                <span>🍱 吃饭/换班停机</span>
+            </div>
+            <div class="toggle-input" onclick="event.stopPropagation()">
+                <input type="number" id="val-break" placeholder="分钟" value="60" oninput="calc()">
+            </div>
+        </div>
+
+        <div class="toggle-row" id="row-qc" onclick="toggleRow('qc')">
+            <div class="toggle-left">
+                <label class="toggle-switch"><input type="checkbox" id="check-qc"><span class="slider"></span></label>
+                <span>🔍 首件/巡检停机</span>
+            </div>
+            <div class="toggle-input" onclick="event.stopPropagation()">
+                <input type="number" id="val-qc" placeholder="分钟" value="10" oninput="calc()">
+            </div>
+        </div>
+
+        <div class="toggle-row" id="row-scrap" onclick="toggleRow('scrap')" style="border-left: 3px solid #f59e0b;">
+            <div class="toggle-left">
+                <label class="toggle-switch"><input type="checkbox" id="check-scrap"><span class="slider"></span></label>
+                <span>⚠️ 预计不良/损耗率 (%)</span>
+            </div>
+            <div class="toggle-input" onclick="event.stopPropagation()">
+                <input type="number" id="val-scrap" placeholder="%" value="2.5" step="0.1" oninput="calc()">
+            </div>
+        </div>
+    </div>
+
+    <div class="result-bar">
+        <div class="result-grid">
+            <div class="res-item">
+                <span class="res-label">完成订单需</span>
+                <span class="res-val" id="daysNeeded">0.0 天</span>
+            </div>
+            <div class="res-item">
+                <span class="res-label">今日实际产能</span>
+                <span class="res-val" id="dailyOutput">0</span>
+            </div>
+            <div class="res-item">
+                <span class="res-label">必须投料总数</span>
+                <span class="res-val bad" id="totalFeed">0</span>
+            </div>
+        </div>
+        <div class="hint-text" id="timeHint">已扣除 0 分钟停机时间 | 净生产时间 0 小时</div>
+    </div>
+
+    <script>
+        // 检测是否有图片，如果有就显示图片，没有就显示CSS画的
+        window.onload = function() {
+            var img = document.getElementById('imgLogo');
+            var css = document.getElementById('cssLogo');
+            img.onload = function() {
+                img.style.display = 'block';
+                css.style.display = 'none';
+            };
+            img.onerror = function() {
+                img.style.display = 'none';
+                css.style.display = 'inline-block';
+            };
+        };
+
+        function toggleRow(id) {
+            const checkbox = document.getElementById('check-' + id);
+            checkbox.checked = !checkbox.checked; // 切换勾选状态
+            
+            const row = document.getElementById('row-' + id);
+            if (checkbox.checked) {
+                row.classList.add('active');
+            } else {
+                row.classList.remove('active');
+            }
+            calc();
+        }
+
+        function calc() {
+            let baseHours = Number(document.getElementById('baseHours').value) || 0;
+            let orderQty = Number(document.getElementById('orderQty').value) || 0;
+            let cycle = Number(document.getElementById('cycle').value) || 0;
+            let cavity = Number(document.getElementById('cavity').value) || 0;
+
+            if (cycle === 0 || cavity === 0) return;
+
+            let totalLossMinutes = 0;
+
+            // 累计所有勾选的时间损耗
+            if (document.getElementById('check-mold').checked) totalLossMinutes += Number(document.getElementById('val-mold').value);
+            if (document.getElementById('check-warm').checked) totalLossMinutes += Number(document.getElementById('val-warm').value);
+            if (document.getElementById('check-break').checked) totalLossMinutes += Number(document.getElementById('val-break').value);
+            if (document.getElementById('check-qc').checked) totalLossMinutes += Number(document.getElementById('val-qc').value);
+
+            // 净时间
+            let totalSecondsAvailable = (baseHours * 60 - totalLossMinutes) * 60;
+            if (totalSecondsAvailable < 0) totalSecondsAvailable = 0;
+
+            // 需求量计算
+            let finalTargetQty = orderQty;
+            if (document.getElementById('check-scrap').checked) {
+                let scrapRate = Number(document.getElementById('val-scrap').value) / 100;
+                if (scrapRate < 1) finalTargetQty = Math.ceil(orderQty / (1 - scrapRate));
+            }
+
+            // 产能计算
+            let dailyOutput = Math.floor((totalSecondsAvailable / cycle) * cavity);
+            let days = 0;
+            if (dailyOutput > 0) days = (finalTargetQty / dailyOutput).toFixed(2);
+
+            // 更新显示
+            let netHours = (totalSecondsAvailable / 3600).toFixed(1);
+            
+            document.getElementById('daysNeeded').innerText = days + " 天";
+            document.getElementById('dailyOutput').innerText = dailyOutput.toLocaleString();
+            document.getElementById('totalFeed').innerText = finalTargetQty.toLocaleString();
+            document.getElementById('timeHint').innerText = `已扣除 ${totalLossMinutes} 分钟停机 | 净生产时间 ${netHours} 小时`;
+        }
+
+        // 初始化
+        calc();
+    </script>
+</body>
+</html>
