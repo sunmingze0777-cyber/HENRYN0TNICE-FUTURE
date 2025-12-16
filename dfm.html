@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YMC DFM 智能审查系统</title>
+    <style>
+        :root { --bg: #1e293b; --card: #334155; --text: #f1f5f9; --red: #ef4444; --green: #10b981; --yellow: #f59e0b; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: var(--bg); color: var(--text); padding: 20px; max-width: 900px; margin: 0 auto; }
+        
+        .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #475569; padding-bottom: 20px; }
+        .title { font-size: 24px; font-weight: bold; color: #38bdf8; }
+        .subtitle { color: #94a3b8; font-size: 14px; margin-top: 5px; }
+
+        /* 评分大盘 */
+        .score-board { background: var(--card); border-radius: 12px; padding: 20px; text-align: center; margin-bottom: 30px; border: 1px solid #475569; display: flex; align-items: center; justify-content: space-around; }
+        .score-val { font-size: 48px; font-weight: bold; transition: color 0.3s; }
+        .score-label { font-size: 14px; color: #94a3b8; }
+        .status-badge { padding: 8px 16px; border-radius: 20px; font-weight: bold; font-size: 18px; }
+
+        /* 检查项列表 */
+        .checklist-group { margin-bottom: 25px; }
+        .group-title { font-size: 18px; color: #38bdf8; margin-bottom: 15px; display: flex; align-items: center; gap: 10px; }
+        .group-title::before { content: ''; display: block; width: 4px; height: 18px; background: #38bdf8; }
+
+        .check-item { background: #0f172a; padding: 15px; border-radius: 8px; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; border: 1px solid #334155; transition: all 0.2s; cursor: pointer; }
+        .check-item:hover { border-color: #64748b; }
+        .check-left { display: flex; align-items: center; gap: 15px; flex: 1; }
+        
+        /* 复选框样式 */
+        .custom-checkbox { width: 24px; height: 24px; border: 2px solid #64748b; border-radius: 4px; display: flex; align-items: center; justify-content: center; transition: all 0.2s; flex-shrink: 0; }
+        .check-item.checked .custom-checkbox { background: var(--green); border-color: var(--green); }
+        .check-item.checked .custom-checkbox::after { content: '✓'; color: white; font-weight: bold; }
+        
+        /* 致命项标记 */
+        .fatal-tag { font-size: 10px; background: #7f1d1d; color: #fca5a5; padding: 2px 6px; border-radius: 4px; border: 1px solid #ef4444; margin-left: 10px; }
+        
+        .item-desc { font-size: 15px; color: #e2e8f0; }
+        .item-sub { font-size: 12px; color: #94a3b8; margin-top: 2px; }
+
+        /* 底部按钮 */
+        .footer { margin-top: 40px; text-align: center; }
+        .btn { background: #38bdf8; color: #0f172a; border: none; padding: 15px 40px; font-size: 18px; font-weight: bold; border-radius: 8px; cursor: pointer; opacity: 0.5; pointer-events: none; transition: all 0.3s; }
+        .btn.active { opacity: 1; pointer-events: all; }
+        .btn.active:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(56, 189, 248, 0.3); }
+
+        /* 状态颜色类 */
+        .risk-high { color: var(--red); }
+        .risk-mid { color: var(--yellow); }
+        .risk-low { color: var(--green); }
+        
+        .bg-high { background: #450a0a; color: #fca5a5; border: 1px solid #ef4444; }
+        .bg-mid { background: #451a03; color: #fdba74; border: 1px solid #f59e0b; }
+        .bg-low { background: #064e3b; color: #6ee7b7; border: 1px solid #10b981; }
+
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <div class="title">YMC DFM 智能图纸审查系统</div>
+        <div class="subtitle">设计缺陷零容忍 · 开模前的最后一道防线</div>
+    </div>
+
+    <!-- 动态评分板 -->
+    <div class="score-board">
+        <div>
+            <div class="score-label">当前设计健康分</div>
+            <div class="score-val risk-high" id="totalScore">0</div>
+        </div>
+        <div>
+            <div class="score-label">审查结论</div>
+            <div class="status-badge bg-high" id="statusText">🚫 禁止开模</div>
+        </div>
+    </div>
+
+    <!-- 检查项区域 -->
+    <div id="checklistArea">
+        <!-- 会通过JS生成 -->
+    </div>
+
+    <div class="footer">
+        <button class="btn" id="submitBtn" onclick="generateReport()">📋 生成 DFM 签署报告</button>
+        <div style="margin-top:10px; font-size:12px; color:#64748b;">* 分数 > 90 分且无致命缺陷方可生成报告</div>
+    </div>
+
+    <script>
+        // 定义检查项目库 (这些是模具行业血的教训)
+        const checkPoints = [
+            {
+                category: "A. 产品胶位与结构 (Product Design)",
+                items: [
+                    { id: 1, text: "全3D拔模分析已通过", sub: "所有出模面无倒扣(0度)，咬花面拔模 > 3度", fatal: true, score: 20 },
+                    { id: 2, text: "壁厚均匀性检查", sub: "无突变胶位(防止缩水)，厚胶位已做偷胶处理", fatal: false, score: 10 },
+                    { id: 3, text: "尖角/薄钢检查", sub: "无尖角薄钢(防止崩缺)，R角设计合理", fatal: false, score: 5 }
+                ]
+            },
+            {
+                category: "B. 模具结构与动作 (Mold Structure)",
+                items: [
+                    { id: 4, text: "滑块/斜顶干涉检查", sub: "运动行程无干涉，铲基强度足够", fatal: true, score: 20 },
+                    { id: 5, text: "冷却水路设计", sub: "水路覆盖率 > 60%，且未通过螺丝孔/顶针孔安全距离", fatal: true, score: 15 },
+                    { id: 6, text: "排气系统规划", sub: "困气位/流道末端已设计排气槽", fatal: false, score: 10 }
+                ]
+            },
+            {
+                category: "C. 加工与装配 (Process & Assembly)",
+                items: [
+                    { id: 7, text: "最小刀具半径确认", sub: "无深窄槽导致无法加工，清角R位合理", fatal: false, score: 10 },
+                    { id: 8, text: "模胚与配件标准", sub: "使用 YMC 标准模胚及标准件(DME/Hasco)", fatal: false, score: 10 }
+                ]
+            }
+        ];
+
+        let currentScore = 0;
+        let hasFatalError = true; // 默认有致命错误(因为没勾)
+
+        // 初始化页面
+        function init() {
+            const container = document.getElementById('checklistArea');
+            
+            checkPoints.forEach(group => {
+                const groupDiv = document.createElement('div');
+                groupDiv.className = 'checklist-group';
+                
+                let html = `<div class="group-title">${group.category}</div>`;
+                
+                group.items.forEach(item => {
+                    html += `
+                        <div class="check-item" onclick="toggleItem(this, ${item.id}, ${item.score}, ${item.fatal})">
+                            <div class="check-left">
+                                <div class="custom-checkbox"></div>
+                                <div>
+                                    <div style="display:flex; align-items:center;">
+                                        <span class="item-desc">${item.text}</span>
+                                        ${item.fatal ? '<span class="fatal-tag">💥 致命项</span>' : ''}
+                                    </div>
+                                    <div class="item-sub">${item.sub}</div>
+                                </div>
+                            </div>
+                            <div style="color:#64748b; font-weight:bold;">+${item.score}分</div>
+                        </div>
+                    `;
+                });
+                
+                groupDiv.innerHTML = html;
+                container.appendChild(groupDiv);
+            });
+        }
+
+        // 切换勾选状态
+        function toggleItem(el, id, score, isFatal) {
+            el.classList.toggle('checked');
+            const isChecked = el.classList.contains('checked');
+            
+            // 计算分数
+            if (isChecked) {
+                currentScore += score;
+            } else {
+                currentScore -= score;
+            }
+
+            updateStatus();
+        }
+
+        // 更新大盘状态
+        function updateStatus() {
+            const scoreEl = document.getElementById('totalScore');
+            const statusBadge = document.getElementById('statusText');
+            const btn = document.getElementById('submitBtn');
+
+            // 检查是否所有的“致命项”都勾选了
+            const allFatalChecked = document.querySelectorAll('.check-item:has(.fatal-tag):not(.checked)').length === 0;
+
+            scoreEl.innerText = currentScore;
+
+            // 逻辑判断
+            if (currentScore >= 90 && allFatalChecked) {
+                // 通过
+                scoreEl.className = "score-val risk-low";
+                statusBadge.className = "status-badge bg-low";
+                statusBadge.innerText = "✅ 允许开模";
+                btn.classList.add('active');
+            } else if (currentScore < 60) {
+                // 高危
+                scoreEl.className = "score-val risk-high";
+                statusBadge.className = "status-badge bg-high";
+                statusBadge.innerText = "🚫 禁止开模 (分低)";
+                btn.classList.remove('active');
+            } else {
+                // 警告
+                scoreEl.className = "score-val risk-mid";
+                statusBadge.className = "status-badge bg-mid";
+                statusBadge.innerText = (allFatalChecked ? "⚠️ 风险可控 (需复审)" : "🚫 致命项未解决");
+                btn.classList.remove('active');
+            }
+        }
+
+        function generateReport() {
+            const date = new Date().toLocaleString();
+            const report = `
+【YMC DFM 审查通过单】
+-------------------
+审查时间: ${date}
+设计评分: ${currentScore} 分
+审查结果: ✅ 批准开模
+
+关键检查:
+- 3D拔模: PASS
+- 干涉检查: PASS
+- 水路设计: PASS
+
+(请截图此凭证发至项目群)
+            `;
+            alert(report);
+        }
+
+        init();
+    </script>
+</body>
+</html>
